@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<title>RASUL INDI PRO MOBILE</title>
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#121c2d;--muted:#8ea0b8;--line:#24334a;--green:#28d17c;--red:#ff5b68;--blue:#55a7ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#e8eef8;font:14px -apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif;padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom)}
+header{padding:16px 4px 12px;display:flex;justify-content:space-between;align-items:center}h1{font-size:18px;margin:0;letter-spacing:.5px}.sub{color:var(--muted);font-size:11px;margin-top:4px}
+.pill{border:1px solid var(--line);border-radius:20px;padding:7px 10px;color:var(--muted);font-size:11px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+.quote{display:flex;justify-content:space-between;align-items:center}.price{font-size:27px;font-weight:700;font-variant-numeric:tabular-nums}.status{font-size:11px;color:var(--muted);margin-top:4px}
+.controls{display:flex;gap:7px;margin-top:12px}.controls button{flex:1;background:#1b2940;color:#dce8f8;border:1px solid var(--line);border-radius:9px;padding:9px 0;font-weight:600}.controls button.active{background:#23466b;border-color:var(--blue)}
+#chart{height:340px;width:100%}.legend{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin:8px 2px 0}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px}
+.signal{display:flex;align-items:center;justify-content:space-between;gap:10px}.signal strong{font-size:18px}.buy{color:var(--green)}.sell{color:var(--red)}.neutral{color:#f4c66a}
+.levels{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:10px}.level{background:#0d1727;border-radius:9px;padding:9px 5px;text-align:center}.level small{display:block;color:var(--muted);font-size:10px;margin-bottom:4px}.level b{font-size:12px;font-variant-numeric:tabular-nums}
+#osc{height:115px;width:100%}.note{color:var(--muted);font-size:11px;line-height:1.5}.footer{text-align:center;color:#70829b;font-size:10px;padding:8px 0 18px}
+</style>
+</head>
+<body>
+<header><div><h1>RASUL INDI PRO <span style="color:#55a7ff">MOBILE</span></h1><div class="sub">XAUUSD · M5 · EMA / RSI / ATR</div></div><div class="pill" id="connection">Подключение…</div></header>
+<section class="card">
+ <div class="quote"><div><div class="sub">XAUUSD · ориентировочная цена</div><div class="price" id="price">—</div><div class="status" id="updated">Ожидание котировки</div></div><div class="pill">USD / oz</div></div>
+ <div class="controls" id="tfbuttons"><button data-tf="1">M1</button><button data-tf="5" class="active">M5</button><button data-tf="15">M15</button><button data-tf="60">H1</button></div>
+</section>
+<section class="card"><div id="chart"></div><div class="legend"><span><i class="dot" style="background:#28d17c"></i>BUY</span><span><i class="dot" style="background:#ff5b68"></i>SELL</span><span>EMA 50 / EMA 200</span></div></section>
+<section class="card"><div class="signal"><div><div class="sub">ПОСЛЕДНИЙ СИГНАЛ</div><strong id="signal" class="neutral">ОЖИДАНИЕ ДАННЫХ</strong></div><div class="pill" id="trend">Тренд: —</div></div>
+ <div class="levels"><div class="level"><small>ENTRY</small><b id="entry">—</b></div><div class="level"><small>STOP LOSS</small><b id="sl">—</b></div><div class="level"><small>TP1</small><b id="tp1">—</b></div><div class="level"><small>TP2 / TP3</small><b id="tp23">—</b></div></div>
+</section>
+<section class="card"><div class="sub">RSI OSCILLATOR · RSI 14 + EMA 5</div><div id="osc"></div><div class="legend"><span><i class="dot" style="background:#28d17c"></i>RSI</span><span><i class="dot" style="background:#ff5b68"></i>Сглаженная RSI</span><span>Уровни 30 / 50 / 70</span></div></section>
+<section class="card note">
+<b>Источник котировок:</b> Biquote public market-data API (бесплатный доступ без ключа, по документации сервиса). Это сторонний поток MT5, он может отличаться от цены и спреда твоего брокера. <a href="https://biquote.io/" target="_blank" style="color:#55a7ff">Документация Biquote</a>.<br><br>
+Сигналы рассчитываются по EMA 50/200 и пересечению RSI 50 на закрытых свечах. TP/SL — расчётные ориентиры по ATR, не торговые приказы. Не подключено к брокеру и не открывает сделки.
+</section>
+<div class="footer">RASUL INDI PRO MOBILE · прототип v1.0 · бесплатный источник данных</div>
+<script>
+const $=id=>document.getElementById(id);
+let tf=5, bars=[], timer=null, lastSignal=null;
+const chart=LightweightCharts.createChart($('chart'),{layout:{background:{color:'#121c2d'},textColor:'#9aabc2'},grid:{vertLines:{color:'#1d2a3e'},horzLines:{color:'#1d2a3e'}},rightPriceScale:{borderColor:'#30415a'},timeScale:{borderColor:'#30415a',timeVisible:true,secondsVisible:false},crosshair:{mode:0}});
+const candles=chart.addCandlestickSeries({upColor:'#28d17c',downColor:'#ff5b68',borderUpColor:'#28d17c',borderDownColor:'#ff5b68',wickUpColor:'#28d17c',wickDownColor:'#ff5b68'});
+const emaFast=chart.addLineSeries({color:'#55a7ff',lineWidth:1});
+const emaSlow=chart.addLineSeries({color:'#f0b44c',lineWidth:1});
+const osc=LightweightCharts.createChart($('osc'),{layout:{background:{color:'#121c2d'},textColor:'#9aabc2'},grid:{vertLines:{visible:false},horzLines:{color:'#1d2a3e'}},rightPriceScale:{borderColor:'#30415a'},timeScale:{visible:false},});
+const rsiLine=osc.addLineSeries({color:'#28d17c',lineWidth:2});
+const rsiSmooth=osc.addLineSeries({color:'#ff5b68',lineWidth:2});
+[30,50,70].forEach(v=>{rsiLine.createPriceLine({price:v,color:'#53647b',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:String(v)});});
+function ema(values,period){let out=[],k=2/(period+1),prev=null;for(let v of values){prev=prev===null?v:v*k+prev*(1-k);out.push(prev)}return out}
+function calcRSI(values,p=14){let out=Array(values.length).fill(50);for(let i=p;i<values.length;i++){let up=0,dn=0;for(let j=i-p+1;j<=i;j++){let d=values[j]-values[j-1];if(d>0)up+=d;else dn-=d}let rs=dn===0?100:up/dn;out[i]=100-100/(1+rs)}return out}
+function aggregate(raw,minutes){let map=new Map();for(let x of raw){let t=Math.floor(x.time/(minutes*60))*(minutes*60);if(!map.has(t))map.set(t,{time:t,open:x.open,high:x.high,low:x.low,close:x.close});else{let b=map.get(t);b.high=Math.max(b.high,x.high);b.low=Math.min(b.low,x.low);b.close=x.close}}return [...map.values()].sort((a,b)=>a.time-b.time)}
+function draw(data){bars=aggregate(data,tf);if(bars.length<30)return;const c=bars.map(x=>x.close),e50=ema(c,50),e200=ema(c,200),r=calcRSI(c),rs=ema(r,5);
+candles.setData(bars);emaFast.setData(bars.map((b,i)=>({time:b.time,value:e50[i]})));emaSlow.setData(bars.map((b,i)=>({time:b.time,value:e200[i]})));
+rsiLine.setData(bars.map((b,i)=>({time:b.time,value:r[i]})));rsiSmooth.setData(bars.map((b,i)=>({time:b.time,value:rs[i]})));
+let i=bars.length-2,prev=i-1,b=bars[i],buy=e50[i]>e200[i]&&b.close>e50[i]&&r[i]>50&&r[prev]<=50,sell=e50[i]<e200[i]&&b.close<e50[i]&&r[i]<50&&r[prev]>=50;
+$('trend').textContent='Тренд: '+(e50[i]>e200[i]?'ВВЕРХ':'ВНИЗ');
+if(buy||sell){let atr=0;for(let j=Math.max(1,i-13);j<=i;j++)atr+=Math.max(bars[j].high-bars[j].low,Math.abs(bars[j].high-bars[j-1].close),Math.abs(bars[j].low-bars[j-1].close));atr/=Math.min(14,i);
+let risk=atr*1.5,entry=b.close,sgn=buy?1:-1;$('signal').textContent=buy?'BUY':'SELL';$('signal').className=buy?'buy':'sell';$('entry').textContent=entry.toFixed(2);$('sl').textContent=(entry-sgn*risk).toFixed(2);$('tp1').textContent=(entry+sgn*risk).toFixed(2);$('tp23').textContent=(entry+sgn*risk*2).toFixed(2)+' / '+(entry+sgn*risk*3).toFixed(2);
+}else{$('signal').textContent='НЕТ НОВОГО СИГНАЛА';$('signal').className='neutral';}
+chart.timeScale().fitContent();osc.timeScale().fitContent();}
+async function load(){try{let res=await fetch('https://biquote.io/api/XAUUSD',{cache:'no-store'});if(!res.ok)throw Error('HTTP '+res.status);let q=await res.json();let price=Number(q.price??q.bid??q.last??q.close);if(Number.isFinite(price))$('price').textContent=price.toFixed(2);$('updated').textContent='Проверено: '+new Date().toLocaleTimeString();$('connection').textContent='Источник доступен';$('connection').style.color='#28d17c';
+let candlesRes=await fetch('https://biquote.io/api/XAUUSD/candles?interval=1&limit=1000',{cache:'no-store'});if(!candlesRes.ok)throw Error('Котировки доступны, свечи API не ответил');let raw=await candlesRes.json();let arr=Array.isArray(raw)?raw:(raw.data??raw.candles??[]);let norm=arr.map(x=>({time:Number(x.time??x.timestamp??x.t),open:Number(x.open??x.o),high:Number(x.high??x.h),low:Number(x.low??x.l),close:Number(x.close??x.c)})).filter(x=>x.time&&Number.isFinite(x.close)).map(x=>({...x,time:x.time>1e12?Math.floor(x.time/1000):x.time}));if(norm.length)draw(norm);else $('connection').textContent='Нет свечей от API';
+}catch(e){$('connection').textContent='Нет связи с API';$('connection').style.color='#ff5b68';$('updated').textContent=e.message+' · проверь интернет/доступность API';}}
+$('tfbuttons').addEventListener('click',e=>{let b=e.target.closest('button[data-tf]');if(!b)return;tf=Number(b.dataset.tf);document.querySelectorAll('#tfbuttons button').forEach(x=>x.classList.toggle('active',x===b));if(bars.length)draw(bars);});
+load();timer=setInterval(load,15000);
+window.addEventListener('resize',()=>{chart.applyOptions({width:$('chart').clientWidth});osc.applyOptions({width:$('osc').clientWidth});});
+</script>
+</body></html>
